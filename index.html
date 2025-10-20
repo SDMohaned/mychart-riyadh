@@ -8,32 +8,132 @@
     <style>
         body, html { 
             margin: 0; 
-            padding: 10px; 
+            padding: 20px; 
             height: 100%; 
             box-sizing: border-box; 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
             display: flex;
             align-items: center;
             justify-content: center;
+            text-align: center;
             background-color: #f8f9fa;
         }
         #chart-container { 
             width: 100%; 
             height: 100%; 
         }
-        #loading-message {
-            font-size: 1.2em;
-            color: #6c757d;
+        #status-message {
+            font-size: 1.1em;
+            color: #dc3545; /* Red color for errors */
+            font-weight: bold;
         }
     </style>
 </head>
 <body>
-    <div id="chart-container">
-        <canvas id="populationPieChart"></canvas>
+    <canvas id="populationPieChart" style="display: none;"></canvas>
+    
+    <div id="status-message">
+        <p>جاري تحميل بيانات المخطط...</p>
     </div>
-    <div id="loading-message">Loading Chart Data...</div>
 
     <script>
         // ===================================================================
         // --- CONFIGURATION: YOU MUST EDIT THESE THREE VARIABLES ---
         // ===================================================================
+
+        // 1. Get this URL from your feature layer's item details page (bottom right).
+        // It must end with a number like /0 or /1.
+        const FEATURE_LAYER_URL = "PASTE_YOUR_FEATURE_LAYER_URL_HERE"; 
+
+        // 2. The exact field name for the village name (text).
+        const VILLAGE_NAME_FIELD = "PASTE_YOUR_VILLAGE_NAME_FIELD_HERE";
+
+        // 3. The exact field name for the population (number).
+        const POPULATION_FIELD = "PASTE_YOUR_POPULATION_FIELD_HERE";
+
+        // ===================================================================
+        // --- DYNAMIC CHART LOGIC (No edits needed below this line) ---
+        // ===================================================================
+
+        const canvas = document.getElementById('populationPieChart');
+        const statusMessage = document.getElementById('status-message');
+        let populationChart = null; // To hold the chart instance
+
+        // Main function to run the process
+        async function initializeChart() {
+            // Step 1: Fetch all data from your feature layer
+            const query = `${FEATURE_LAYER_URL}/query?where=1%3D1&outFields=${VILLAGE_NAME_FIELD},${POPULATION_FIELD}&returnGeometry=false&f=json`;
+            
+            let villageData;
+            try {
+                const response = await fetch(query);
+                if (!response.ok) {
+                    throw new Error(`Server returned an error. Is the layer shared publicly?`);
+                }
+                const data = await response.json();
+                if (data.error) {
+                    throw new Error(`ArcGIS Server Error: ${data.error.message}. Check your URL and Field Names.`);
+                }
+                villageData = data.features.map(feature => ({
+                    name: feature.attributes[VILLAGE_NAME_FIELD],
+                    population: feature.attributes[POPULATION_FIELD]
+                }));
+            } catch (error) {
+                statusMessage.innerHTML = `<p><strong>Error:</strong> Failed to load data.</p><p>${error.message}</p>`;
+                console.error("Error details:", error);
+                return; // Stop the script
+            }
+
+            // Step 2: If data is loaded, create the chart
+            statusMessage.style.display = 'none'; // Hide status message
+            canvas.style.display = 'block'; // Show chart canvas
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const selectedVillageName = urlParams.get('village');
+
+            let chartLabels, chartData, chartTitle;
+            let chartColors = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40', '#C9CBCF'];
+
+            const totalPopulation = villageData.reduce((sum, v) => sum + (v.population || 0), 0);
+
+            if (selectedVillageName) {
+                const selectedVillage = villageData.find(v => v.name === selectedVillageName);
+                if (selectedVillage) {
+                    const otherPopulation = totalPopulation - selectedVillage.population;
+                    chartLabels = [selectedVillage.name, 'جميع البلديات الأخرى'];
+                    chartData = [selectedVillage.population, otherPopulation];
+                    chartTitle = `مقارنة سكان: ${selectedVillage.name}`;
+                    chartColors = ['rgba(255, 99, 132, 0.8)', 'rgba(201, 203, 207, 0.7)'];
+                }
+            }
+            
+            if (!chartData) { // If no selection or selection not found
+                chartLabels = villageData.map(v => v.name);
+                chartData = villageData.map(v => v.population);
+                chartTitle = 'توزيع السكان الكلي';
+            }
+            
+            if(populationChart) populationChart.destroy(); // Clear old chart
+
+            populationChart = new Chart(canvas.getContext('2d'), {
+                type: 'pie',
+                data: {
+                    labels: chartLabels,
+                    datasets: [{ data: chartData, backgroundColor: chartColors, hoverOffset: 4 }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: { display: true, text: chartTitle, font: { size: 16 } },
+                        legend: { position: 'top' }
+                    }
+                }
+            });
+        }
+
+        // Run the process
+        initializeChart();
+    </script>
+</body>
+</html>
