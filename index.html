@@ -31,7 +31,7 @@
 
     <script>
         // --- DATA SOURCE ---
-        // This data has been taken directly from the CSV file you provided.
+        // This data is from the CSV file you provided.
         const villageData = [
             { "name": "الدرعية", "population": 73600 },
             { "name": "الخرج", "population": 376000 },
@@ -54,16 +54,13 @@
             { "name": "مرات", "population": 17000 }
         ];
 
-        // --- DYNAMIC CHART LOGIC (No edits needed) ---
+        // --- DYNAMIC CHART LOGIC ---
         const canvas = document.getElementById('populationPieChart');
-        let populationChart = null;
-        
         const urlParams = new URLSearchParams(window.location.search);
         const selectedVillageName = urlParams.get('village');
 
         let chartLabels, chartData, chartTitle;
-        let chartColors = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40', '#C9CBCF'];
-
+        let chartColors = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40', '#C9CBCF', '#E7E9ED', '#7F7F7F'];
         const totalPopulation = villageData.reduce((sum, v) => sum + (v.population || 0), 0);
 
         if (selectedVillageName && villageData.some(v => v.name === selectedVillageName)) {
@@ -79,7 +76,7 @@
             chartTitle = 'توزيع السكان الكلي';
         }
         
-        populationChart = new Chart(canvas.getContext('2d'), {
+        new Chart(canvas.getContext('2d'), {
             type: 'pie',
             data: {
                 labels: chartLabels,
