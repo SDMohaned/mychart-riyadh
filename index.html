@@ -3,22 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>إحصائيات السكان</title>
+    <title>مقارنة السكان</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body, html { margin: 0; padding: 10px; height: 100%; box-sizing: border-box; font-family: sans-serif; }
+        body, html { margin: 0; padding: 10px; height: 100%; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         #chart-container { width: 100%; height: 100%; }
     </style>
 </head>
 <body>
     <div id="chart-container">
-        <canvas id="populationChart"></canvas>
+        <canvas id="populationPieChart"></canvas>
     </div>
 
     <script>
-        // --- PASTE YOUR DATA HERE ---
-        // I have created sample data based on your file name.
-        // Replace this with the actual data from your CSV file.
+        // --- DATA SOURCE ---
+        // This is sample data. You should replace this with the actual data from your CSV.
         const villageData = [
             { "name": "الدرعية", "population": 73600 },
             { "name": "الخرج", "population": 376000 },
@@ -31,58 +30,13 @@
             { "name": "شقراء", "population": 40000 }
         ];
 
-        // --- DYNAMIC HIGHLIGHT LOGIC ---
-        // This function reads the village name from the URL
+        // --- DYNAMIC CHART LOGIC ---
         const urlParams = new URLSearchParams(window.location.search);
-        const highlightedVillage = urlParams.get('village'); // e.g., ?village=الخرج
+        const selectedVillageName = urlParams.get('village');
 
-        // Prepare data for the chart
-        const labels = villageData.map(item => item.name);
-        const data = villageData.map(item => item.population);
+        let chartLabels;
+        let chartData;
+        let chartTitle = 'توزيع السكان الكلي';
+        let chartColors = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40', '#C9CBCF', '#E7E9ED', '#7F7F7F'];
 
-        // Create a color array. It will be a default color for all bars...
-        const backgroundColors = labels.map(() => 'rgba(75, 192, 192, 0.5)');
-        // ...unless a village is highlighted in the URL, then it gets a different color.
-        if (highlightedVillage) {
-            const indexToHighlight = labels.indexOf(highlightedVillage);
-            if (indexToHighlight > -1) {
-                backgroundColors[indexToHighlight] = 'rgba(255, 99, 132, 0.8)';
-            }
-        }
-
-        // --- CHART CONFIGURATION ---
-        const ctx = document.getElementById('populationChart').getContext('2d');
-        const populationChart = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: labels,
-                datasets: [{
-                    label: 'عدد السكان',
-                    data: data,
-                    backgroundColor: backgroundColors,
-                    borderColor: backgroundColors.map(color => color.replace('0.5', '1').replace('0.8', '1')),
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    title: {
-                        display: true,
-                        text: 'عدد السكان في البلديات'
-                    },
-                    legend: {
-                        display: false
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true
-                    }
-                }
-            }
-        });
-    </script>
-</body>
-</html>
+        const totalPopulation = villageData.reduce((sum, village) => sum +
