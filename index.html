@@ -12,10 +12,18 @@
             height: 100%; 
             box-sizing: border-box; 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #f8f9fa;
         }
         #chart-container { 
             width: 100%; 
             height: 100%; 
+        }
+        #loading-message {
+            font-size: 1.2em;
+            color: #6c757d;
         }
     </style>
 </head>
@@ -23,16 +31,9 @@
     <div id="chart-container">
         <canvas id="populationPieChart"></canvas>
     </div>
+    <div id="loading-message">Loading Chart Data...</div>
 
     <script>
-        // --- DATA SOURCE ---
-        // IMPORTANT: Replace this sample data with the full, correct data from your CSV file.
-        const villageData = [
-            { "name": "الدرعية", "population": 73600 },
-            { "name": "الخرج", "population": 376000 },
-            { "name": "الدوادمي", "population": 217000 },
-            { "name": "المجمعة", "population": 133000 },
-            { "name": "القويعية", "population": 126000 },
-            { "name": "الأفلاج", "population": 68000 },
-            { "name": "وادي الدواسر", "population": 106000 },
-            { "name": "الزلفي", "
+        // ===================================================================
+        // --- CONFIGURATION: YOU MUST EDIT THESE THREE VARIABLES ---
+        // ===================================================================
