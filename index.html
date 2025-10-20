@@ -6,8 +6,17 @@
     <title>مقارنة السكان</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body, html { margin: 0; padding: 10px; height: 100%; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        #chart-container { width: 100%; height: 100%; }
+        body, html { 
+            margin: 0; 
+            padding: 10px; 
+            height: 100%; 
+            box-sizing: border-box; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+        }
+        #chart-container { 
+            width: 100%; 
+            height: 100%; 
+        }
     </style>
 </head>
 <body>
@@ -17,7 +26,7 @@
 
     <script>
         // --- DATA SOURCE ---
-        // This is sample data. You should replace this with the actual data from your CSV.
+        // IMPORTANT: Replace this sample data with the full, correct data from your CSV file.
         const villageData = [
             { "name": "الدرعية", "population": 73600 },
             { "name": "الخرج", "population": 376000 },
@@ -26,17 +35,4 @@
             { "name": "القويعية", "population": 126000 },
             { "name": "الأفلاج", "population": 68000 },
             { "name": "وادي الدواسر", "population": 106000 },
-            { "name": "الزلفي", "population": 69000 },
-            { "name": "شقراء", "population": 40000 }
-        ];
-
-        // --- DYNAMIC CHART LOGIC ---
-        const urlParams = new URLSearchParams(window.location.search);
-        const selectedVillageName = urlParams.get('village');
-
-        let chartLabels;
-        let chartData;
-        let chartTitle = 'توزيع السكان الكلي';
-        let chartColors = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40', '#C9CBCF', '#E7E9ED', '#7F7F7F'];
-
-        const totalPopulation = villageData.reduce((sum, village) => sum +
+            { "name": "الزلفي", "
