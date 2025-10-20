@@ -7,133 +7,139 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body, html { 
-            margin: 0; 
-            padding: 20px; 
-            height: 100%; 
-            box-sizing: border-box; 
+            margin: 0; padding: 20px; height: 100%; box-sizing: border-box; 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            background-color: #f8f9fa;
+            display: flex; align-items: center; justify-content: center; text-align: center;
         }
-        #chart-container { 
-            width: 100%; 
-            height: 100%; 
-        }
-        #status-message {
-            font-size: 1.1em;
-            color: #dc3545; /* Red color for errors */
-            font-weight: bold;
-        }
+        #chart-container { width: 100%; height: 100%; }
+        #config-ui { padding: 20px; border: 1px solid #ccc; border-radius: 8px; background-color: #f8f9fa; }
+        #config-ui select, #config-ui button { width: 100%; padding: 10px; margin-top: 10px; font-size: 1em; }
+        #status-message { color: #dc3545; font-weight: bold; }
     </style>
 </head>
 <body>
     <canvas id="populationPieChart" style="display: none;"></canvas>
-    
-    <div id="status-message">
-        <p>جاري تحميل بيانات المخطط...</p>
+    <div id="status-message"></div>
+
+    <div id="config-ui" style="display: none;">
+        <h3>إعداد المخطط</h3>
+        <p>الرجاء اختيار حقول البيانات الصحيحة.</p>
+        <label for="name-field-select">اختر حقل اسم البلدية:</label>
+        <select id="name-field-select"></select>
+        <label for="pop-field-select">اختر حقل عدد السكان:</label>
+        <select id="pop-field-select"></select>
+        <button id="draw-chart-btn">رسم المخطط</button>
     </div>
 
     <script>
         // ===================================================================
-        // --- CONFIGURATION: YOU MUST EDIT THESE THREE VARIABLES ---
+        // --- CONFIGURATION: YOU ONLY NEED TO EDIT THIS ONE VARIABLE ---
         // ===================================================================
-
-        // 1. Get this URL from your feature layer's item details page (bottom right).
+        // Get this URL from your feature layer's item details page (bottom right).
         // It must end with a number like /0 or /1.
         const FEATURE_LAYER_URL = "PASTE_YOUR_FEATURE_LAYER_URL_HERE"; 
-
-        // 2. The exact field name for the village name (text).
-        const VILLAGE_NAME_FIELD = "PASTE_YOUR_VILLAGE_NAME_FIELD_HERE";
-
-        // 3. The exact field name for the population (number).
-        const POPULATION_FIELD = "PASTE_YOUR_POPULATION_FIELD_HERE";
-
-        // ===================================================================
-        // --- DYNAMIC CHART LOGIC (No edits needed below this line) ---
         // ===================================================================
 
         const canvas = document.getElementById('populationPieChart');
         const statusMessage = document.getElementById('status-message');
-        let populationChart = null; // To hold the chart instance
+        const configUI = document.getElementById('config-ui');
+        const nameSelect = document.getElementById('name-field-select');
+        const popSelect = document.getElementById('pop-field-select');
+        const drawBtn = document.getElementById('draw-chart-btn');
+        let populationChart = null;
+        let villageData = null;
 
-        // Main function to run the process
-        async function initializeChart() {
-            // Step 1: Fetch all data from your feature layer
-            const query = `${FEATURE_LAYER_URL}/query?where=1%3D1&outFields=${VILLAGE_NAME_FIELD},${POPULATION_FIELD}&returnGeometry=false&f=json`;
-            
-            let villageData;
+        // Step 1: Fetch the layer's structure to get all field names
+        async function fetchLayerSchema() {
+            statusMessage.innerText = 'جاري تحميل بنية الطبقة...';
+            try {
+                const response = await fetch(`${FEATURE_LAYER_URL}?f=json`);
+                if (!response.ok) throw new Error('لا يمكن الوصول للطبقة. هل هي مشتركة بشكل عام (Public)؟');
+                const schema = await response.json();
+                if (schema.error) throw new Error(`خطأ في الخادم: ${schema.error.message}`);
+
+                schema.fields.forEach(field => {
+                    const option = document.createElement('option');
+                    option.value = field.name;
+                    option.textContent = `${field.alias} (${field.name})`;
+                    // Populate string fields for names, and numeric fields for population
+                    if (field.type === 'esriFieldTypeString') nameSelect.appendChild(option.cloneNode(true));
+                    if (['esriFieldTypeDouble', 'esriFieldTypeInteger', 'esriFieldTypeSmallInteger'].includes(field.type)) popSelect.appendChild(option.cloneNode(true));
+                });
+
+                statusMessage.style.display = 'none';
+                configUI.style.display = 'block';
+            } catch (error) {
+                statusMessage.innerHTML = `<p><strong>فشل تحميل الحقول:</strong></p><p>${error.message}</p>`;
+            }
+        }
+
+        // Step 2: Fetch the actual data using the chosen fields
+        async function fetchChartData(nameField, popField) {
+            configUI.style.display = 'none';
+            statusMessage.style.display = 'block';
+            statusMessage.innerText = 'جاري تحميل بيانات المخطط...';
+            const query = `${FEATURE_LAYER_URL}/query?where=1%3D1&outFields=${nameField},${popField}&returnGeometry=false&f=json`;
             try {
                 const response = await fetch(query);
-                if (!response.ok) {
-                    throw new Error(`Server returned an error. Is the layer shared publicly?`);
-                }
                 const data = await response.json();
-                if (data.error) {
-                    throw new Error(`ArcGIS Server Error: ${data.error.message}. Check your URL and Field Names.`);
-                }
-                villageData = data.features.map(feature => ({
-                    name: feature.attributes[VILLAGE_NAME_FIELD],
-                    population: feature.attributes[POPULATION_FIELD]
-                }));
+                villageData = data.features.map(f => ({ name: f.attributes[nameField], population: f.attributes[popField] }));
+                drawChart();
             } catch (error) {
-                statusMessage.innerHTML = `<p><strong>Error:</strong> Failed to load data.</p><p>${error.message}</p>`;
-                console.error("Error details:", error);
-                return; // Stop the script
+                statusMessage.innerHTML = `<p><strong>فشل تحميل البيانات:</strong></p><p>${error.message}</p>`;
             }
+        }
 
-            // Step 2: If data is loaded, create the chart
-            statusMessage.style.display = 'none'; // Hide status message
-            canvas.style.display = 'block'; // Show chart canvas
+        // Step 3: Draw the chart
+        function drawChart() {
+            if (!villageData) return;
+            statusMessage.style.display = 'none';
+            canvas.style.display = 'block';
 
             const urlParams = new URLSearchParams(window.location.search);
             const selectedVillageName = urlParams.get('village');
 
             let chartLabels, chartData, chartTitle;
             let chartColors = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40', '#C9CBCF'];
-
             const totalPopulation = villageData.reduce((sum, v) => sum + (v.population || 0), 0);
 
-            if (selectedVillageName) {
+            if (selectedVillageName && villageData.some(v => v.name === selectedVillageName)) {
                 const selectedVillage = villageData.find(v => v.name === selectedVillageName);
-                if (selectedVillage) {
-                    const otherPopulation = totalPopulation - selectedVillage.population;
-                    chartLabels = [selectedVillage.name, 'جميع البلديات الأخرى'];
-                    chartData = [selectedVillage.population, otherPopulation];
-                    chartTitle = `مقارنة سكان: ${selectedVillage.name}`;
-                    chartColors = ['rgba(255, 99, 132, 0.8)', 'rgba(201, 203, 207, 0.7)'];
-                }
-            }
-            
-            if (!chartData) { // If no selection or selection not found
+                const otherPopulation = totalPopulation - selectedVillage.population;
+                chartLabels = [selectedVillage.name, 'جميع البلديات الأخرى'];
+                chartData = [selectedVillage.population, otherPopulation];
+                chartTitle = `مقارنة سكان: ${selectedVillage.name}`;
+                chartColors = ['rgba(255, 99, 132, 0.8)', 'rgba(201, 203, 207, 0.7)'];
+            } else {
                 chartLabels = villageData.map(v => v.name);
                 chartData = villageData.map(v => v.population);
                 chartTitle = 'توزيع السكان الكلي';
             }
             
-            if(populationChart) populationChart.destroy(); // Clear old chart
-
+            if (populationChart) populationChart.destroy();
             populationChart = new Chart(canvas.getContext('2d'), {
                 type: 'pie',
-                data: {
-                    labels: chartLabels,
-                    datasets: [{ data: chartData, backgroundColor: chartColors, hoverOffset: 4 }]
-                },
+                data: { labels: chartLabels, datasets: [{ data: chartData, backgroundColor: chartColors, hoverOffset: 4 }] },
                 options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        title: { display: true, text: chartTitle, font: { size: 16 } },
-                        legend: { position: 'top' }
-                    }
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { title: { display: true, text: chartTitle, font: { size: 16 } }, legend: { position: 'top' } }
                 }
             });
         }
 
-        // Run the process
-        initializeChart();
+        // Add event listener for the button
+        drawBtn.addEventListener('click', () => {
+            const selectedNameField = nameSelect.value;
+            const selectedPopField = popSelect.value;
+            if (selectedNameField && selectedPopField) {
+                fetchChartData(selectedNameField, selectedPopField);
+            } else {
+                alert('الرجاء اختيار حقل للاسم وحقل للسكان.');
+            }
+        });
+
+        // Start the process when the page loads
+        fetchLayerSchema();
     </script>
 </body>
 </html>
