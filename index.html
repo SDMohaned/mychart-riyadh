@@ -7,133 +7,93 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body, html { 
-            margin: 0; padding: 20px; height: 100%; box-sizing: border-box; 
+            margin: 0; 
+            padding: 20px; 
+            height: 100%; 
+            box-sizing: border-box; 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            background-color: #f8f9fa;
         }
-        #chart-container { width: 100%; height: 100%; }
-        #config-ui { padding: 20px; border: 1px solid #ccc; border-radius: 8px; background-color: #f8f9fa; max-width: 500px; }
-        #config-ui input, #config-ui button { width: 95%; padding: 10px; margin-top: 10px; font-size: 1em; text-align: left; direction: ltr; }
-        #status-message, #fields-list { color: #dc3545; font-weight: bold; }
-        #fields-list { background-color: #e9ecef; border: 1px solid #ced4da; padding: 10px; margin-top: 15px; text-align: left; direction: ltr; max-height: 200px; overflow-y: auto; }
+        #chart-container { 
+            width: 100%; 
+            height: 100%; 
+        }
     </style>
 </head>
 <body>
-    <canvas id="populationPieChart" style="display: none;"></canvas>
-    
-    <div id="config-ui" style="display: none;">
-        <h3>إعداد المخطط</h3>
-        <p id="status-message"></p>
-        <div id="fields-list">
-            <p><strong>الحقول المتوفرة في بياناتك:</strong></p>
-            <ul id="fields-ul"></ul>
-        </div>
-        <p style="margin-top: 15px;">انسخ والصق أسماء الحقول الصحيحة أدناه:</p>
-        <label for="name-field-input">حقل اسم البلدية (نص):</label>
-        <input type="text" id="name-field-input" placeholder="Copy and paste name field here">
-        
-        <label for="pop-field-input">حقل عدد السكان (رقم):</label>
-        <input type="text" id="pop-field-input" placeholder="Copy and paste population field here">
-        
-        <button id="draw-chart-btn">رسم المخطط</button>
+    <div id="chart-container">
+        <canvas id="populationPieChart"></canvas>
     </div>
 
     <script>
-        // ===================================================================
-        // --- CONFIGURATION: YOU ONLY NEED TO EDIT THIS ONE VARIABLE ---
-        // ===================================================================
-        const FEATURE_LAYER_URL = "PASTE_YOUR_FEATURE_LAYER_URL_HERE"; 
-        // ===================================================================
+        // --- DATA SOURCE ---
+        // This data has been taken directly from the CSV file you provided.
+        const villageData = [
+            { "name": "الدرعية", "population": 73600 },
+            { "name": "الخرج", "population": 376000 },
+            { "name": "الدوادمي", "population": 217000 },
+            { "name": "المجمعة", "population": 133000 },
+            { "name": "القويعية", "population": 126000 },
+            { "name": "الأفلاج", "population": 68000 },
+            { "name": "وادي الدواسر", "population": 106000 },
+            { "name": "الزلفي", "population": 69000 },
+            { "name": "شقراء", "population": 40000 },
+            { "name": "حوطة بني تميم", "population": 43000 },
+            { "name": "عفيف", "population": 77000 },
+            { "name": "السليل", "population": 36000 },
+            { "name": "ضرما", "population": 24000 },
+            { "name": "المزاحمية", "population": 39000 },
+            { "name": "رماح", "population": 28000 },
+            { "name": "ثادق", "population": 17000 },
+            { "name": "حريملاء", "population": 15000 },
+            { "name": "الحريق", "population": 15000 },
+            { "name": "مرات", "population": 17000 }
+        ];
 
+        // --- DYNAMIC CHART LOGIC (No edits needed) ---
         const canvas = document.getElementById('populationPieChart');
-        const statusMessage = document.getElementById('status-message');
-        const configUI = document.getElementById('config-ui');
-        const fieldsUL = document.getElementById('fields-ul');
-        const nameInput = document.getElementById('name-field-input');
-        const popInput = document.getElementById('pop-field-input');
-        const drawBtn = document.getElementById('draw-chart-btn');
         let populationChart = null;
+        
+        const urlParams = new URLSearchParams(window.location.search);
+        const selectedVillageName = urlParams.get('village');
 
-        async function fetchLayerSchema() {
-            statusMessage.innerText = 'جاري تحميل بنية الطبقة...';
-            configUI.style.display = 'block';
-            try {
-                const response = await fetch(`${FEATURE_LAYER_URL}?f=json`);
-                if (!response.ok) throw new Error('لا يمكن الوصول للطبقة. هل هي مشتركة بشكل عام (Public)؟');
-                const schema = await response.json();
-                if (schema.error) throw new Error(`خطأ في الخادم: ${schema.error.message}`);
-                
-                statusMessage.innerText = '';
-                schema.fields.forEach(field => {
-                    const listItem = document.createElement('li');
-                    listItem.textContent = `${field.name} (Type: ${field.type})`;
-                    fieldsUL.appendChild(listItem);
-                });
-            } catch (error) {
-                statusMessage.innerHTML = `<p><strong>فشل تحميل الحقول:</strong></p><p>${error.message}</p>`;
-            }
+        let chartLabels, chartData, chartTitle;
+        let chartColors = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40', '#C9CBCF'];
+
+        const totalPopulation = villageData.reduce((sum, v) => sum + (v.population || 0), 0);
+
+        if (selectedVillageName && villageData.some(v => v.name === selectedVillageName)) {
+            const selectedVillage = villageData.find(v => v.name === selectedVillageName);
+            const otherPopulation = totalPopulation - selectedVillage.population;
+            chartLabels = [selectedVillage.name, 'جميع البلديات الأخرى'];
+            chartData = [selectedVillage.population, otherPopulation];
+            chartTitle = `مقارنة سكان: ${selectedVillage.name}`;
+            chartColors = ['rgba(255, 99, 132, 0.8)', 'rgba(201, 203, 207, 0.7)'];
+        } else {
+            chartLabels = villageData.map(v => v.name);
+            chartData = villageData.map(v => v.population);
+            chartTitle = 'توزيع السكان الكلي';
         }
-
-        async function initializeChart(nameField, popField) {
-            configUI.style.display = 'none';
-            statusMessage.style.display = 'block';
-            statusMessage.innerText = 'جاري تحميل بيانات المخطط...';
-            const query = `${FEATURE_LAYER_URL}/query?where=1%3D1&outFields=${nameField},${popField}&returnGeometry=false&f=json`;
-            try {
-                const response = await fetch(query);
-                const data = await response.json();
-                if(data.error) throw new Error(`خطأ في الخادم: ${data.error.message}. تأكد من صحة أسماء الحقول.`);
-                
-                const villageData = data.features.map(f => ({ name: f.attributes[nameField], population: f.attributes[popField] }));
-                drawChart(villageData);
-            } catch (error) {
-                statusMessage.innerHTML = `<p><strong>فشل تحميل البيانات:</strong></p><p>${error.message}</p>`;
-                configUI.style.display = 'block'; // Show config again on error
-            }
-        }
-
-        function drawChart(villageData) {
-            statusMessage.style.display = 'none';
-            canvas.style.display = 'block';
-
-            const urlParams = new URLSearchParams(window.location.search);
-            const selectedVillageName = urlParams.get('village');
-            const totalPopulation = villageData.reduce((sum, v) => sum + (v.population || 0), 0);
-
-            let chartLabels, chartData, chartTitle;
-            let chartColors = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40', '#C9CBCF'];
-
-            if (selectedVillageName && villageData.some(v => v.name === selectedVillageName)) {
-                const selected = villageData.find(v => v.name === selectedVillageName);
-                chartLabels = [selected.name, 'جميع البلديات الأخرى'];
-                chartData = [selected.population, totalPopulation - selected.population];
-                chartTitle = `مقارنة سكان: ${selected.name}`;
-                chartColors = ['rgba(255, 99, 132, 0.8)', 'rgba(201, 203, 207, 0.7)'];
-            } else {
-                chartLabels = villageData.map(v => v.name);
-                chartData = villageData.map(v => v.population);
-                chartTitle = 'توزيع السكان الكلي';
-            }
-            
-            if (populationChart) populationChart.destroy();
-            populationChart = new Chart(canvas.getContext('2d'), {
-                type: 'pie',
-                data: { labels: chartLabels, datasets: [{ data: chartData, backgroundColor: chartColors, hoverOffset: 4 }] },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: chartTitle, font: { size: 16 } }, legend: { position: 'top' } } }
-            });
-        }
-
-        drawBtn.addEventListener('click', () => {
-            const nameField = nameInput.value.trim();
-            const popField = popInput.value.trim();
-            if (nameField && popField) {
-                initializeChart(nameField, popField);
-            } else {
-                alert('الرجاء إدخال أسماء الحقول.');
+        
+        populationChart = new Chart(canvas.getContext('2d'), {
+            type: 'pie',
+            data: {
+                labels: chartLabels,
+                datasets: [{ data: chartData, backgroundColor: chartColors, hoverOffset: 4 }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: { display: true, text: chartTitle, font: { size: 16 } },
+                    legend: { position: 'top' }
+                }
             }
         });
-
-        fetchLayerSchema();
     </script>
 </body>
 </html>
