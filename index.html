@@ -9,34 +9,38 @@
         body, html { 
             margin: 0; padding: 20px; height: 100%; box-sizing: border-box; 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            display: flex; align-items: center; justify-content: center; text-align: center;
+            display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
         }
-        #chart-container { width: 100%; height: 100%; }
+        #chart-container { width: 100%; height: 90%; }
+        #controls { height: 10%; }
         #config-ui { padding: 20px; border: 1px solid #ccc; border-radius: 8px; background-color: #f8f9fa; }
         #config-ui select, #config-ui button { width: 100%; padding: 10px; margin-top: 10px; font-size: 1em; }
         #status-message { color: #dc3545; font-weight: bold; }
+        #reset-btn { background-color: #6c757d; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; }
     </style>
 </head>
 <body>
-    <canvas id="populationPieChart" style="display: none;"></canvas>
-    <div id="status-message"></div>
-
-    <div id="config-ui" style="display: none;">
-        <h3>إعداد المخطط</h3>
-        <p>الرجاء اختيار حقول البيانات الصحيحة.</p>
-        <label for="name-field-select">اختر حقل اسم البلدية:</label>
-        <select id="name-field-select"></select>
-        <label for="pop-field-select">اختر حقل عدد السكان:</label>
-        <select id="pop-field-select"></select>
-        <button id="draw-chart-btn">رسم المخطط</button>
+    <div id="chart-container">
+        <canvas id="populationPieChart" style="display: none;"></canvas>
+        <div id="status-message"></div>
+        <div id="config-ui" style="display: none;">
+            <h3>إعداد المخطط</h3>
+            <p>الرجاء اختيار حقول البيانات الصحيحة. سيتم حفظ اختيارك.</p>
+            <label for="name-field-select">اختر حقل اسم البلدية:</label>
+            <select id="name-field-select"></select>
+            <label for="pop-field-select">اختر حقل عدد السكان:</label>
+            <select id="pop-field-select"></select>
+            <button id="draw-chart-btn">حفظ ورسم المخطط</button>
+        </div>
+    </div>
+    <div id="controls" style="display: none;">
+        <button id="reset-btn">تغيير الحقول</button>
     </div>
 
     <script>
         // ===================================================================
         // --- CONFIGURATION: YOU ONLY NEED TO EDIT THIS ONE VARIABLE ---
         // ===================================================================
-        // Get this URL from your feature layer's item details page (bottom right).
-        // It must end with a number like /0 or /1.
         const FEATURE_LAYER_URL = "PASTE_YOUR_FEATURE_LAYER_URL_HERE"; 
         // ===================================================================
 
@@ -46,11 +50,13 @@
         const nameSelect = document.getElementById('name-field-select');
         const popSelect = document.getElementById('pop-field-select');
         const drawBtn = document.getElementById('draw-chart-btn');
+        const controlsDiv = document.getElementById('controls');
+        const resetBtn = document.getElementById('reset-btn');
         let populationChart = null;
         let villageData = null;
 
-        // Step 1: Fetch the layer's structure to get all field names
         async function fetchLayerSchema() {
+            // This function gets the field names to populate the dropdowns
             statusMessage.innerText = 'جاري تحميل بنية الطبقة...';
             try {
                 const response = await fetch(`${FEATURE_LAYER_URL}?f=json`);
@@ -59,23 +65,19 @@
                 if (schema.error) throw new Error(`خطأ في الخادم: ${schema.error.message}`);
 
                 schema.fields.forEach(field => {
-                    const option = document.createElement('option');
-                    option.value = field.name;
-                    option.textContent = `${field.alias} (${field.name})`;
-                    // Populate string fields for names, and numeric fields for population
-                    if (field.type === 'esriFieldTypeString') nameSelect.appendChild(option.cloneNode(true));
-                    if (['esriFieldTypeDouble', 'esriFieldTypeInteger', 'esriFieldTypeSmallInteger'].includes(field.type)) popSelect.appendChild(option.cloneNode(true));
+                    const option = new Option(`${field.alias} (${field.name})`, field.name);
+                    if (field.type === 'esriFieldTypeString') nameSelect.add(option.cloneNode(true));
+                    if (['esriFieldTypeDouble', 'esriFieldTypeInteger', 'esriFieldTypeSmallInteger'].includes(field.type)) popSelect.add(option.cloneNode(true));
                 });
-
                 statusMessage.style.display = 'none';
                 configUI.style.display = 'block';
             } catch (error) {
                 statusMessage.innerHTML = `<p><strong>فشل تحميل الحقول:</strong></p><p>${error.message}</p>`;
             }
         }
-
-        // Step 2: Fetch the actual data using the chosen fields
+        
         async function fetchChartData(nameField, popField) {
+            // This function gets the actual data for the chart
             configUI.style.display = 'none';
             statusMessage.style.display = 'block';
             statusMessage.innerText = 'جاري تحميل بيانات المخطط...';
@@ -90,11 +92,12 @@
             }
         }
 
-        // Step 3: Draw the chart
         function drawChart() {
+            // This function draws the chart on the screen
             if (!villageData) return;
             statusMessage.style.display = 'none';
             canvas.style.display = 'block';
+            controlsDiv.style.display = 'block'; // Show the reset button
 
             const urlParams = new URLSearchParams(window.location.search);
             const selectedVillageName = urlParams.get('village');
@@ -120,26 +123,43 @@
             populationChart = new Chart(canvas.getContext('2d'), {
                 type: 'pie',
                 data: { labels: chartLabels, datasets: [{ data: chartData, backgroundColor: chartColors, hoverOffset: 4 }] },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: { title: { display: true, text: chartTitle, font: { size: 16 } }, legend: { position: 'top' } }
-                }
+                options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: chartTitle, font: { size: 16 } }, legend: { position: 'top' } } }
             });
         }
 
-        // Add event listener for the button
+        // --- Event Listeners ---
         drawBtn.addEventListener('click', () => {
             const selectedNameField = nameSelect.value;
             const selectedPopField = popSelect.value;
             if (selectedNameField && selectedPopField) {
+                // Save the selected fields to the browser's memory
+                localStorage.setItem('savedNameField', selectedNameField);
+                localStorage.setItem('savedPopField', selectedPopField);
                 fetchChartData(selectedNameField, selectedPopField);
-            } else {
-                alert('الرجاء اختيار حقل للاسم وحقل للسكان.');
             }
         });
 
-        // Start the process when the page loads
-        fetchLayerSchema();
+        resetBtn.addEventListener('click', () => {
+            // Clear the saved settings and show the configuration screen again
+            localStorage.removeItem('savedNameField');
+            localStorage.removeItem('savedPopField');
+            location.reload(); // Easiest way to reset the state
+        });
+
+        // --- Main App Logic ---
+        function initializeApp() {
+            const savedNameField = localStorage.getItem('savedNameField');
+            const savedPopField = localStorage.getItem('savedPopField');
+            if (savedNameField && savedPopField) {
+                // If we have saved settings, load the chart directly
+                fetchChartData(savedNameField, savedPopField);
+            } else {
+                // Otherwise, show the configuration screen
+                fetchLayerSchema();
+            }
+        }
+
+        initializeApp();
     </script>
 </body>
 </html>
